@@ -16,7 +16,7 @@ interface JiraData {
 }
 
 export default function HomePage() {
-  const [releaseVersion, setReleaseVersion] = useState("")
+  const [fixVersion, setFixVersion] = useState("")
   const [selectedLabel, setSelectedLabel] = useState("")
   const [selectedComponent, setSelectedComponent] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -73,26 +73,54 @@ export default function HomePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!releaseVersion || !selectedLabel || !selectedComponent) return
+    if (!fixVersion || !selectedLabel || !selectedComponent) return
 
     setIsLoading(true)
+    setError(null)
 
-    // Simulate API call to filter Jira tickets
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      // Fetch filtered tickets from Jira
+      const response = await fetch('/api/jira/filter-tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          label: selectedLabel,
+          component: selectedComponent,
+        }),
+      })
 
-    // Store form data in sessionStorage for use across pages
-    sessionStorage.setItem(
-      "releaseData",
-      JSON.stringify({
-        releaseVersion,
-        selectedLabel,
-        selectedComponent,
-      }),
-    )
+      if (!response.ok) {
+        throw new Error('Failed to fetch tickets from Jira')
+      }
 
-    // Navigate to dev notification page
-    router.push("/dev-notification")
-    setIsLoading(false)
+      const ticketData = await response.json()
+      
+      if (ticketData.error) {
+        throw new Error(ticketData.error)
+      }
+
+      // Store form data and ticket data in sessionStorage for use across pages
+      sessionStorage.setItem(
+        "releaseData",
+        JSON.stringify({
+          fixVersion,
+          selectedLabel,
+          selectedComponent,
+          tickets: ticketData.tickets,
+          totalCount: ticketData.totalCount,
+        }),
+      )
+
+      // Navigate to dev notification page
+      router.push("/dev-notification")
+    } catch (err: any) {
+      console.error('Error fetching tickets:', err)
+      setError(err.message || 'Failed to fetch tickets from Jira')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -116,15 +144,15 @@ export default function HomePage() {
             
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="release-version" className="text-sm font-semibold text-gray-700">
-                  Release Version *
+                <Label htmlFor="fix-version" className="text-sm font-semibold text-gray-700">
+                  Fix Version *
                 </Label>
                 <Input
-                  id="release-version"
+                  id="fix-version"
                   type="text"
                   placeholder="e.g., v1.2.3"
-                  value={releaseVersion}
-                  onChange={(e) => setReleaseVersion(e.target.value)}
+                  value={fixVersion}
+                  onChange={(e) => setFixVersion(e.target.value)}
                   className="h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
